@@ -1,0 +1,16 @@
+services:
+  # Continuous service: runs Job Hunter on schedule (default 09:00, 14:00, 18:00 BRT)
+  job-hunter:
+    build: .
+    container_name: job-hunter
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      TZ: America/Sao_Paulo
+      SCHEDULE: '09:00 14:00 18:00'
+      RUN_ON_START: 'true'
+    restart: unless-stopped
+    stdin_open: true
+    tty: true

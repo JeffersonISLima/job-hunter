@@ -1,14 +1,14 @@
 # CD = Continuous Deployment
-# Só roda no push para main/master.
-# 1) Revalida o código (mesmo critério do CI)
-# 2) Se passou, conecta na VPS por SSH e atualiza o container
+# Runs only on push to main/master.
+# 1) Re-validate the code (same criteria as CI)
+# 2) If it passed, SSH into the VPS and update the container
 #
-# Secrets necessários (GitHub → Settings → Secrets and variables → Actions):
-#   VPS_HOST     → IP ou hostname da Oracle
-#   VPS_USER     → usuário SSH (ex.: ubuntu, opc)
-#   VPS_SSH_KEY  → chave privada SSH (conteúdo completo do arquivo)
-#   VPS_APP_DIR  → caminho do projeto na VPS (ex.: /home/ubuntu/job-hunter)
-#   VPS_PORT     → opcional; padrão 22
+# Required secrets (GitHub → Settings → Secrets and variables → Actions):
+#   VPS_HOST     → Oracle IP or hostname
+#   VPS_USER     → SSH user (e.g. ubuntu, opc)
+#   VPS_SSH_KEY  → private SSH key (full file contents)
+#   VPS_APP_DIR  → project path on the VPS (e.g. /home/ubuntu/job-hunter)
+#   VPS_PORT     → optional; default 22
 
 name: CD
 

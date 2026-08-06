@@ -1,0 +1,154 @@
+{
+  "model": "nvidia/nemotron-3-super-120b-a12b:free",
+  "minScore": 7,
+  "maxAlertsPerRun": 5,
+  "minGatherJobs": 5,
+  "candidate": {
+    "fullName": "Jefferson Inácio de Souza Lima",
+    "shortName": "Jefferson",
+    "whatsapp": "5511933038299",
+    "linkedin": "https://www.linkedin.com/in/jeffersonislima",
+    "github": "https://github.com/JeffersonISLima"
+  },
+  "role": "Desenvolvedor Back-end Node.js Pleno (mid-level)",
+  "modality": {
+    "preferred": "100% remota (qualquer lugar)",
+    "hybridOrOnsite": "somente se a empresa for big tech brasileira ou banco de grande porte"
+  },
+  "salary": {
+    "priorityFrom": 10000,
+    "acceptFrom": 6000,
+    "currency": "BRL",
+    "uninformedLabel": "Salário não informado publicamente"
+  },
+  "hardRules": [
+    "AWS pode aparecer como diferencial, nunca como requisito eliminatório",
+    "Inglês pode ser desejável ou básico, nunca fluente obrigatório",
+    "Node.js deve ser a tecnologia central da vaga",
+    "Validar que a vaga está ativa; registrar data de verificação",
+    "Empresas/setores na lista de prioridades são PREFERÊNCIA (bônus). Nunca rejeitar nem baixar score abaixo de 7 só porque a empresa não está na lista — o critério é compatibilidade com o perfil"
+  ],
+  "prioritySectors": [
+    {
+      "tier": "S",
+      "name": "financeiro",
+      "points": 40,
+      "companies": [
+        "Itaú",
+        "Bradesco",
+        "Safra",
+        "Santander",
+        "Nubank",
+        "Stone",
+        "PicPay",
+        "C6 Bank",
+        "Mercado Pago",
+        "CloudWalk",
+        "Dock",
+        "Pismo",
+        "Celcoin",
+        "EBANX",
+        "Adyen",
+        "BTG",
+        "Inter",
+        "BV",
+        "Neon"
+      ]
+    },
+    {
+      "tier": "A",
+      "name": "produto de tecnologia",
+      "points": 30,
+      "companies": [
+        "Mercado Livre",
+        "iFood",
+        "Loggi",
+        "RD Station",
+        "Nuvemshop",
+        "Conta Azul",
+        "Omie",
+        "Olist",
+        "Pipefy",
+        "Hotmart",
+        "Blip",
+        "TOTVS",
+        "Sankhya"
+      ]
+    },
+    {
+      "tier": "B",
+      "name": "agronegócio/agtech",
+      "points": 20,
+      "companies": [
+        "Solinftec",
+        "Agrolend",
+        "Traive",
+        "Raízen",
+        "Bayer",
+        "Syngenta Digital"
+      ]
+    }
+  ],
+  "desiredTech": [
+    "Node.js",
+    "TypeScript",
+    "NestJS",
+    "Express",
+    "Fastify",
+    "Docker",
+    "PostgreSQL",
+    "Redis",
+    "Kafka",
+    "RabbitMQ",
+    "Microsserviços",
+    "DDD",
+    "Clean Architecture",
+    "CI/CD"
+  ],
+  "exclusions": [
+    "Java",
+    ".NET",
+    "PHP",
+    "Python",
+    "Mobile",
+    "QA",
+    "DevOps",
+    "Front-end",
+    "Full Stack com foco em Front-end"
+  ],
+  "scoringRubric": {
+    "tierS": 40,
+    "tierA": 30,
+    "tierB": 20,
+    "remote": 25,
+    "nodejsExplicit": 20,
+    "typescript": 15,
+    "nestjs": 15,
+    "docker": 10,
+    "postgresql": 10,
+    "microservices": 10,
+    "salaryAbove10k": 20
+  },
+  "queries": [
+    "\"Node.js\" OR NestJS \"desenvolvedor backend\" OR \"desenvolvedor back-end\" pleno remoto",
+    "\"Node.js\" backend pleno (Nubank OR Stone OR PicPay OR \"C6 Bank\" OR Inter OR Neon) vaga",
+    "\"Node.js\" OR NestJS (Itaú OR Bradesco OR Santander OR BTG OR Safra) desenvolvedor",
+    "\"Node.js\" backend (\"Mercado Livre\" OR iFood OR Hotmart OR Pipefy OR Olist OR \"RD Station\") vaga",
+    "NestJS OR \"Node.js\" TypeScript backend pleno site:gupy.io",
+    "\"Node.js\" backend remoto Brasil site:boards.greenhouse.io",
+    "\"Node.js\" OR NestJS backend Brasil site:jobs.lever.co",
+    "\"Node.js\" backend (Dock OR Pismo OR Celcoin OR EBANX OR CloudWalk OR \"Mercado Pago\") vaga",
+    "\"Node.js\" OR NestJS (Solinftec OR Agrolend OR Traive OR Raízen) desenvolvedor",
+    "site:linkedin.com/jobs Node.js OR NestJS backend pleno remoto Brasil"
+  ],
+  "fallbackQueries": [
+    "vaga desenvolvedor backend Node.js pleno remoto Brasil",
+    "vaga NestJS TypeScript backend pleno remoto Brasil",
+    "\"Node.js\" OR NestJS backend pleno site:gupy.io remoto Brasil",
+    "\"Node.js\" backend site:programathor.com.br",
+    "\"Node.js\" backend site:vagas.com.br OR site:indeed.com.br",
+    "site:linkedin.com/jobs \"Node.js\" OR NestJS \"Brasil\" remoto",
+    "\"software engineer\" Node.js NestJS remote Brazil -senior -staff -india -usa",
+    "vaga back-end Node TypeScript microsserviços remoto junior OR pleno Brasil -estágio"
+  ]
+}
