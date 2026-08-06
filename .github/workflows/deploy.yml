@@ -1,0 +1,86 @@
+# CD = Continuous Deployment
+# Só roda no push para main/master.
+# 1) Revalida o código (mesmo critério do CI)
+# 2) Se passou, conecta na VPS por SSH e atualiza o container
+#
+# Secrets necessários (GitHub → Settings → Secrets and variables → Actions):
+#   VPS_HOST     → IP ou hostname da Oracle
+#   VPS_USER     → usuário SSH (ex.: ubuntu, opc)
+#   VPS_SSH_KEY  → chave privada SSH (conteúdo completo do arquivo)
+#   VPS_APP_DIR  → caminho do projeto na VPS (ex.: /home/ubuntu/job-hunter)
+#   VPS_PORT     → opcional; padrão 22
+
+name: CD
+
+on:
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify before deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y python3 make g++
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck / build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Integration tests
+        run: npm run test:integration
+
+  deploy:
+    name: Deploy to VPS
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.VPS_APP_DIR }}"
+
+            echo "[cd] branch/atualizando código..."
+            git fetch origin
+            git checkout main || git checkout master
+            git pull --ff-only
+
+            if [ ! -f .env ]; then
+              echo "[cd] ERRO: .env não encontrado em ${{ secrets.VPS_APP_DIR }}"
+              echo "[cd] Crie o .env na VPS uma vez (a partir do .env.example) e rode o CD de novo."
+              exit 1
+            fi
+
+            echo "[cd] rebuild + restart do container..."
+            docker compose up --build -d
+
+            echo "[cd] containers:"
+            docker compose ps
+
+            echo "[cd] deploy concluído"

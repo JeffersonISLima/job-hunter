@@ -1,0 +1,47 @@
+# CI = Continuous Integration
+# Roda em todo push/PR para validar o código ANTES de qualquer deploy.
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1) Baixa o código do commit/PR neste runner temporário
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2) Instala Node (mesma família LTS usada no ecossistema npm)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # 3) Dependências nativas (better-sqlite3) precisam de toolchain C++
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y python3 make g++
+
+      # 4) Instala dependências de forma reproduzível (usa package-lock.json)
+      - name: Install dependencies
+        run: npm ci
+
+      # 5) Typecheck/build — se o TypeScript quebrar, o CI falha aqui
+      - name: Typecheck / build
+        run: npm run build
+
+      # 6) Testes unitários (rápidos, sem Telegram/API reais)
+      - name: Unit tests
+        run: npm run test:unit
+
+      # 7) Testes de integração leves (SQLite em memória)
+      - name: Integration tests
+        run: npm run test:integration
