@@ -1,0 +1,30 @@
+{
+  "name": "job-hunter",
+  "version": "1.0.0",
+  "description": "Agente autônomo de busca e curadoria de vagas Node.js backend",
+  "main": "src/main.ts",
+  "scripts": {
+    "start": "ts-node src/main.ts",
+    "start:once": "ts-node src/main.ts --once",
+    "build": "tsc",
+    "hunt": "node dist/main.js --once",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run spec/unit",
+    "test:integration": "vitest run spec/integration/jobRepository.spec.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "dotenv": "^16.4.5",
+    "node-telegram-bot-api": "^0.66.0",
+    "openai": "^4.52.0",
+    "playwright": "1.40.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.10",
+    "@types/node": "^20.14.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5",
+    "vitest": "^3.2.4"
+  }
+}
