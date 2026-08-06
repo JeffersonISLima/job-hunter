@@ -62,26 +62,28 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
+          # First Playwright image pull on a small VPS often exceeds the 10m default
+          command_timeout: 45m
           script_stop: true
           script: |
             set -euo pipefail
             cd "${{ secrets.VPS_APP_DIR }}"
 
-            echo "[cd] branch/atualizando código..."
+            echo "[cd] branch/updating code..."
             git fetch origin
             git checkout main || git checkout master
             git pull --ff-only
 
             if [ ! -f .env ]; then
-              echo "[cd] ERRO: .env não encontrado em ${{ secrets.VPS_APP_DIR }}"
-              echo "[cd] Crie o .env na VPS uma vez (a partir do .env.example) e rode o CD de novo."
+              echo "[cd] ERROR: .env not found in ${{ secrets.VPS_APP_DIR }}"
+              echo "[cd] Create .env on the VPS once (from .env.example) and re-run CD."
               exit 1
             fi
 
-            echo "[cd] rebuild + restart do container..."
+            echo "[cd] rebuild + restart container..."
             docker compose up --build -d
 
             echo "[cd] containers:"
             docker compose ps
 
-            echo "[cd] deploy concluído"
+            echo "[cd] deploy complete"
