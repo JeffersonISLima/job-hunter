@@ -57,4 +57,31 @@ describe('NotifyStep', () => {
     expect(notifier.sendJobAlert).not.toHaveBeenCalled();
     expect(notifier.sendNoJobsStatus).toHaveBeenCalledOnce();
   });
+
+  it('não envia vaga encerrada e marca como rejected', async () => {
+    const pending = [
+      createStoredJob({
+        link: 'https://montreal.gupy.io/jobs/11575472',
+        title: 'Desenvolvedor Node Pleno',
+        description: 'Candidaturas encerradas. Inscrições encerradas.',
+      }),
+    ];
+    const repo = createMockRepository({
+      getPending: vi.fn().mockReturnValue(pending),
+    });
+    const notifier = createMockNotifier();
+    const step = new NotifyStep(notifier);
+    const ctx = createContext({ repo });
+
+    await step.run(ctx);
+
+    expect(notifier.sendJobAlert).not.toHaveBeenCalled();
+    expect(repo.markSent).not.toHaveBeenCalled();
+    expect(repo.markRejected).toHaveBeenCalledWith(
+      pending[0].link,
+      'Vaga encerrada / candidaturas fechadas'
+    );
+    expect(ctx.sent).toBe(0);
+    expect(notifier.sendNoJobsStatus).toHaveBeenCalledOnce();
+  });
 });

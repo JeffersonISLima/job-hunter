@@ -1,5 +1,10 @@
 import type { JobListing } from '../../domain/job';
 import type { IJobEvaluator } from '../../domain/ports/jobEvaluator';
+import {
+  CLOSED_JOB_REASON,
+  isClosedJobText,
+  jobTextBlob,
+} from '../../infrastructure/scraping/jobValidation';
 import type { CurateStatus, PipelineContext } from './context';
 
 export class CurateService {
@@ -24,6 +29,22 @@ export class CurateService {
 
       ctx.stats.processed += 1;
       console.log(`[eval] ${job.title} — ${job.company}`);
+
+      if (
+        isClosedJobText(
+          jobTextBlob([job.title, job.snippet, job.description])
+        )
+      ) {
+        ctx.repo.save({
+          job,
+          score: 0,
+          rankingPoints: 0,
+          reason: CLOSED_JOB_REASON,
+          status: 'rejected',
+        });
+        console.log(`[reject] ${CLOSED_JOB_REASON}: ${job.title}`);
+        continue;
+      }
 
       const result = await this.evaluator.evaluate(job);
       console.log(

@@ -132,4 +132,31 @@ describe('CurateService', () => {
     expect(ctx.stats.eligible).toBe(1);
     expect(repo.save).toHaveBeenCalledTimes(1);
   });
+
+  it('rejeita vaga encerrada sem chamar o evaluator', async () => {
+    const repo = createMockRepository();
+    const evaluate = vi.fn();
+    const service = new CurateService({ evaluate });
+    const ctx = createContext({ repo });
+    const job = createJob({
+      link: 'https://montreal.gupy.io/jobs/11575472',
+      title: 'Desenvolvedor de Software - Pleno(Node)',
+      description:
+        'Candidaturas encerradas. Publicada em 02 de julho. Inscrições encerradas.',
+    });
+
+    await service.curateUntilValid([job], ctx);
+
+    expect(evaluate).not.toHaveBeenCalled();
+    expect(ctx.stats.eligible).toBe(0);
+    expect(ctx.stats.processed).toBe(1);
+    expect(repo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        job,
+        status: 'rejected',
+        score: 0,
+        reason: 'Vaga encerrada / candidaturas fechadas',
+      })
+    );
+  });
 });
