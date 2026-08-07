@@ -1,3 +1,13 @@
+# Job Hunter — Docker
+#
+# Source is baked into the image (Dockerfile COPY). After code changes,
+# ALWAYS rebuild:
+#
+#   docker compose up --build -d
+#
+# Plain `docker compose up` / `up -d` only recreates the container from the
+# existing image. Production CD already runs `docker compose up --build -d`.
+#
 services:
   # Continuous service: runs Job Hunter on schedule (default 09:00, 14:00, 18:00 BRT)
   job-hunter:

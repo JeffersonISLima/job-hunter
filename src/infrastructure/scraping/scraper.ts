@@ -3,8 +3,13 @@ import { spawn } from 'child_process';
 import path from 'path';
 import type { JobListing } from '../../domain/job';
 import type { IJobScraper, JobSpyOptions } from '../../domain/ports/jobScraper';
+import {
+  canonicalizeJobLink,
+  isClosedJobText,
+  jobTextBlob,
+} from './jobValidation';
 
-const SCRAPER_VERSION = 'gather-brazil-only-v1';
+const SCRAPER_VERSION = 'ddg-bing-html-v1';
 
 function isLikelyJobPosting(link: string, title: string): boolean {
   const url = link.toLowerCase();
@@ -96,41 +101,21 @@ function formatVerifiedAt(date = new Date()): string {
   return `${day}/${month}/${year}`;
 }
 
-function normalizeLink(href: string): string | null {
-  try {
-    if (!href) return null;
-    if (href.startsWith('/url?') || (href.includes('google.') && href.includes('/url?'))) {
-      const url = new URL(href, 'https://www.google.com');
-      const q = url.searchParams.get('q') || url.searchParams.get('url');
-      if (q) return normalizeLink(q);
-    }
-    if (href.startsWith('/l/?') || href.includes('duckduckgo.com/l/')) {
-      const url = new URL(href, 'https://duckduckgo.com');
-      const uddg = url.searchParams.get('uddg');
-      if (uddg) return normalizeLink(uddg);
-    }
-    const url = new URL(href);
-    if (
-      url.hostname.includes('google.') ||
-      url.hostname.includes('duckduckgo.com') ||
-      url.hostname.includes('bing.com')
-    ) {
-      return null;
-    }
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
-
 function extractEmail(text: string): string | undefined {
   const match = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
   return match?.[0];
 }
 
-function guessCompany(title: string, snippet: string, host: string): string {
+export function guessCompany(title: string, snippet: string, host: string): string {
+  const gupyHost = host.replace(/^www\./, '').toLowerCase();
+  const gupyMatch = gupyHost.match(/^([a-z0-9-]+)\.gupy\.io$/i);
+  if (gupyMatch?.[1] && !['www', 'portal', 'app'].includes(gupyMatch[1])) {
+    const sub = gupyMatch[1];
+    return sub.charAt(0).toUpperCase() + sub.slice(1);
+  }
+
   const patterns = [
-    /(?:na|at|@)\s+([A-ZÁÉÍÓÚÂÊÔÃÕ][\wÁÉÍÓÚÂÊÔÃÕà-ú&.\-\s]{1,40})/i,
+    /(?:^|\s)(?:na|at|@)\s+([A-ZÁÉÍÓÚÂÊÔÃÕ][\wÁÉÍÓÚÂÊÔÃÕà-ú&.\-\s]{1,40})/i,
     /-\s*([A-ZÁÉÍÓÚÂÊÔÃÕ][\wÁÉÍÓÚÂÊÔÃÕà-ú&.\-\s]{1,40})\s*$/,
   ];
 
@@ -144,6 +129,20 @@ function guessCompany(title: string, snippet: string, host: string): string {
 
   const cleanedHost = host.replace(/^www\./, '').split('.')[0];
   return cleanedHost ? cleanedHost.charAt(0).toUpperCase() + cleanedHost.slice(1) : '';
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit = {},
+  timeoutMs = 15000
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function looksLikeNodeJob(text: string): boolean {
@@ -186,12 +185,12 @@ export class JobScraper implements IJobScraper {
 
   private async dismissConsent(page: Page): Promise<void> {
     const selectors = [
+      '#bnp_btn_accept',
       'button:has-text("Aceitar tudo")',
       'button:has-text("Aceitar todas")',
-      'button:has-text("Aceitar")',
       'button:has-text("Accept all")',
+      'button:has-text("Accept")',
       'button:has-text("I agree")',
-      '#L2AGLb',
     ];
 
     for (const selector of selectors) {
@@ -207,65 +206,13 @@ export class JobScraper implements IJobScraper {
     }
   }
 
-  private async pageLooksBlocked(page: Page): Promise<string | null> {
-    const content = (await page.content()).toLowerCase();
-    const title = (await page.title()).toLowerCase();
-
-    if (
-      content.includes('unusual traffic') ||
-      content.includes('captcha') ||
-      content.includes('recaptcha') ||
-      content.includes('/sorry/') ||
-      title.includes('before you continue') ||
-      title.includes('sorry')
-    ) {
-      return 'possível CAPTCHA/bloqueio anti-bot';
-    }
-    return null;
-  }
-
-  private async extractGoogleResults(
-    page: Page
-  ): Promise<Array<{ title: string; link: string; snippet: string }>> {
-    return page.evaluate(() => {
-      const out: Array<{ title: string; link: string; snippet: string }> = [];
-      const seen = new Set<string>();
-      const anchors = Array.from(
-        document.querySelectorAll('div.g a, div[data-sokoban-container] a, a[jsname]')
-      );
-
-      for (const a of anchors) {
-        const href = (a as HTMLAnchorElement).href || '';
-        if (!href.startsWith('http') || href.includes('google.')) continue;
-
-        const h3 = a.querySelector('h3');
-        const title = h3?.textContent?.trim() || a.textContent?.trim() || '';
-        if (!title || title.length < 5 || seen.has(href)) continue;
-        seen.add(href);
-
-        const container =
-          a.closest('div.g') ||
-          a.closest('div[data-sokoban-container]') ||
-          a.parentElement?.parentElement;
-        const snippet =
-          container?.querySelector('div[data-sncf], div.VwiC3b, span.aCOpRe')?.textContent?.trim() ||
-          '';
-
-        out.push({ title, link: href, snippet });
-        if (out.length >= 10) break;
-      }
-
-      return out;
-    });
-  }
-
   private toListings(
     raw: Array<{ title: string; link: string; snippet: string }>
   ): JobListing[] {
     const listings: JobListing[] = [];
 
     for (const item of raw) {
-      const link = normalizeLink(item.link);
+      const link = canonicalizeJobLink(item.link);
       if (!link) continue;
       try {
         const host = new URL(link).hostname;
@@ -280,39 +227,6 @@ export class JobScraper implements IJobScraper {
     }
 
     return listings;
-  }
-
-  private async searchGoogle(query: string): Promise<JobListing[]> {
-    const context = await this.newContext();
-    const page = await context.newPage();
-
-    try {
-      const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&hl=pt-BR&gl=br&num=10&pws=0`;
-      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
-      await this.dismissConsent(page);
-      await page.waitForTimeout(1200);
-
-      const blocked = await this.pageLooksBlocked(page);
-      if (blocked) {
-        console.warn(`[scraper] Google bloqueado (${blocked})`);
-        return [];
-      }
-
-      try {
-        await page.waitForSelector('div.g, h3, #search', { timeout: 8000 });
-      } catch {
-      }
-
-      const listings = this.toListings(await this.extractGoogleResults(page));
-      console.log(`[scraper] Google: ${listings.length} resultado(s)`);
-      return listings;
-    } catch (error) {
-      console.error(`[scraper] Erro Google:`, error);
-      return [];
-    } finally {
-      await page.close();
-      await context.close();
-    }
   }
 
   private async searchDuckDuckGo(query: string): Promise<JobListing[]> {
@@ -353,154 +267,53 @@ export class JobScraper implements IJobScraper {
     }
   }
 
-  private async searchBingWeb(query: string): Promise<JobListing[]> {
-    const apiKey = process.env.BING_SEARCH_API_KEY;
-    if (!apiKey) return [];
+  private async searchBingHtml(query: string): Promise<JobListing[]> {
+    const context = await this.newContext();
+    const page = await context.newPage();
 
     try {
-      console.log('[scraper] Tentando Bing Web Search API...');
-      const url = new URL('https://api.bing.microsoft.com/v7.0/search');
-      url.searchParams.set('q', query);
-      url.searchParams.set('count', '10');
-      url.searchParams.set('mkt', 'pt-BR');
+      const searchUrl = `https://www.bing.com/search?q=${encodeURIComponent(query)}&setlang=pt-BR&cc=BR`;
+      await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      await this.dismissConsent(page);
+      await page.waitForTimeout(1000);
 
-      const res = await fetch(url, {
-        headers: { 'Ocp-Apim-Subscription-Key': apiKey },
+      try {
+        await page.waitForSelector('li.b_algo', { timeout: 8000 });
+      } catch {
+      }
+
+      const raw = await page.evaluate(() => {
+        const out: Array<{ title: string; link: string; snippet: string }> = [];
+        const items = Array.from(document.querySelectorAll('li.b_algo'));
+
+        for (const item of items) {
+          const anchor = item.querySelector('h2 a') as HTMLAnchorElement | null;
+          if (!anchor?.href) continue;
+          const title = anchor.textContent?.trim() || '';
+          const snippet =
+            item.querySelector('.b_caption p, p')?.textContent?.trim() || '';
+          if (!title) continue;
+          out.push({ title, link: anchor.href, snippet });
+          if (out.length >= 10) break;
+        }
+        return out;
       });
 
-      if (!res.ok) {
-        const body = await res.text();
-        console.warn(
-          `[scraper] Bing HTTP ${res.status} (API aposentada em ago/2025): ${body.slice(0, 200)}`
-        );
+      if (raw.length === 0) {
+        console.warn('[scraper] Bing HTML: nenhum li.b_algo (bloqueio ou página vazia)');
         return [];
       }
 
-      const data = (await res.json()) as {
-        webPages?: { value?: Array<{ name?: string; url?: string; snippet?: string }> };
-      };
-
-      const listings = this.toListings(
-        (data.webPages?.value || [])
-          .filter((item) => item.name && item.url)
-          .map((item) => ({
-            title: item.name || '',
-            link: item.url || '',
-            snippet: item.snippet || '',
-          }))
-      );
-      console.log(`[scraper] Bing: ${listings.length} resultado(s)`);
+      const listings = this.toListings(raw);
+      console.log(`[scraper] Bing HTML: ${listings.length} resultado(s)`);
       return listings;
     } catch (error) {
-      console.warn('[scraper] Falha Bing:', error);
+      console.error(`[scraper] Erro Bing HTML:`, error);
       return [];
+    } finally {
+      await page.close();
+      await context.close();
     }
-  }
-
-  private async searchSerpApi(query: string): Promise<JobListing[]> {
-    const apiKey = process.env.SERPAPI_API_KEY;
-    if (!apiKey) return [];
-
-    try {
-      console.log('[scraper] Tentando SerpAPI...');
-      const url = new URL('https://serpapi.com/search.json');
-      url.searchParams.set('engine', 'google');
-      url.searchParams.set('q', query);
-      url.searchParams.set('api_key', apiKey);
-      url.searchParams.set('hl', 'pt');
-      url.searchParams.set('gl', 'br');
-      url.searchParams.set('num', '10');
-
-      const res = await fetch(url);
-      if (!res.ok) {
-        console.warn(`[scraper] SerpAPI HTTP ${res.status}: ${await res.text()}`);
-        return [];
-      }
-
-      const data = (await res.json()) as {
-        organic_results?: Array<{ title?: string; link?: string; snippet?: string }>;
-      };
-
-      const listings = this.toListings(
-        (data.organic_results || [])
-          .filter((item) => item.title && item.link)
-          .map((item) => ({
-            title: item.title || '',
-            link: item.link || '',
-            snippet: item.snippet || '',
-          }))
-      );
-      console.log(`[scraper] SerpAPI: ${listings.length} resultado(s)`);
-      return listings;
-    } catch (error) {
-      console.warn('[scraper] Falha SerpAPI:', error);
-      return [];
-    }
-  }
-
-  private async searchSearchApi(query: string): Promise<JobListing[]> {
-    const apiKey = process.env.SEARCHAPI_API_KEY;
-    if (!apiKey) return [];
-
-    try {
-      console.log('[scraper] Tentando SearchAPI...');
-      const url = new URL('https://www.searchapi.io/api/v1/search');
-      url.searchParams.set('engine', 'google');
-      url.searchParams.set('q', query);
-      url.searchParams.set('api_key', apiKey);
-      url.searchParams.set('hl', 'pt');
-      url.searchParams.set('gl', 'br');
-      url.searchParams.set('num', '10');
-
-      const res = await fetch(url);
-      if (!res.ok) {
-        console.warn(`[scraper] SearchAPI HTTP ${res.status}: ${await res.text()}`);
-        return [];
-      }
-
-      const data = (await res.json()) as {
-        organic_results?: Array<{ title?: string; link?: string; snippet?: string }>;
-      };
-
-      const listings = this.toListings(
-        (data.organic_results || [])
-          .filter((item) => item.title && item.link)
-          .map((item) => ({
-            title: item.title || '',
-            link: item.link || '',
-            snippet: item.snippet || '',
-          }))
-      );
-      console.log(`[scraper] SearchAPI: ${listings.length} resultado(s)`);
-      return listings;
-    } catch (error) {
-      console.warn('[scraper] Falha SearchAPI:', error);
-      return [];
-    }
-  }
-
-  private async searchQuery(query: string): Promise<JobListing[]> {
-    const fromGoogle = await this.searchGoogle(query);
-    if (fromGoogle.length > 0) return fromGoogle;
-
-    console.log('[scraper] Fallback DuckDuckGo');
-    const fromDdg = await this.searchDuckDuckGo(query);
-    if (fromDdg.length > 0) return fromDdg;
-
-    const apiFallbacks: Array<[string, boolean, () => Promise<JobListing[]>]> = [
-      ['Bing', Boolean(process.env.BING_SEARCH_API_KEY), () => this.searchBingWeb(query)],
-      ['SerpAPI', Boolean(process.env.SERPAPI_API_KEY), () => this.searchSerpApi(query)],
-      ['SearchAPI', Boolean(process.env.SEARCHAPI_API_KEY), () => this.searchSearchApi(query)],
-    ];
-
-    for (const [name, enabled, fn] of apiFallbacks) {
-      if (!enabled) continue;
-      console.log(`[scraper] Fallback ${name}`);
-      const results = await fn();
-      if (results.length > 0) return results;
-    }
-
-    return [];
   }
 
   private async searchJobApis(): Promise<JobListing[]> {
@@ -508,7 +321,7 @@ export class JobScraper implements IJobScraper {
 
     try {
       console.log('[scraper] (API) Remotive search=node');
-      const remotiveRes = await fetch(
+      const remotiveRes = await fetchWithTimeout(
         'https://remotive.com/api/remote-jobs?category=software-dev&search=node'
       );
       if (remotiveRes.ok) {
@@ -531,10 +344,12 @@ export class JobScraper implements IJobScraper {
             .replace(/\s+/g, ' ')
             .trim()
             .slice(0, 3000);
+          const link = canonicalizeJobLink(job.url);
+          if (!link) continue;
           const listing: JobListing = {
             title: job.title,
             company: job.company_name,
-            link: job.url,
+            link,
             snippet: description.slice(0, 280),
             description,
             location: job.candidate_required_location || 'Remoto',
@@ -542,6 +357,9 @@ export class JobScraper implements IJobScraper {
             verifiedAt: formatVerifiedAt(),
           };
           if (!isBrazilRelevantJob(listing)) continue;
+          if (isClosedJobText(jobTextBlob([listing.title, listing.snippet, listing.description]))) {
+            continue;
+          }
           listings.push(listing);
         }
       } else {
@@ -553,7 +371,7 @@ export class JobScraper implements IJobScraper {
 
     try {
       console.log('[scraper] (API) RemoteOK');
-      const remoteOkRes = await fetch('https://remoteok.com/api', {
+      const remoteOkRes = await fetchWithTimeout('https://remoteok.com/api', {
         headers: { 'User-Agent': 'job-hunter/1.0' },
       });
       if (remoteOkRes.ok) {
@@ -581,10 +399,15 @@ export class JobScraper implements IJobScraper {
             .trim()
             .slice(0, 3000);
 
+          const rawLink = job.url.startsWith('http')
+            ? job.url
+            : `https://remoteok.com/remote-jobs/${job.id}`;
+          const link = canonicalizeJobLink(rawLink);
+          if (!link) continue;
           const listing: JobListing = {
             title: job.position,
             company: job.company || 'Empresa não identificada',
-            link: job.url.startsWith('http') ? job.url : `https://remoteok.com/remote-jobs/${job.id}`,
+            link,
             snippet: description.slice(0, 280),
             description,
             location: job.location || 'Remoto',
@@ -595,6 +418,9 @@ export class JobScraper implements IJobScraper {
             verifiedAt: formatVerifiedAt(),
           };
           if (!isBrazilRelevantJob(listing)) continue;
+          if (isClosedJobText(jobTextBlob([listing.title, listing.snippet, listing.description]))) {
+            continue;
+          }
           listings.push(listing);
         }
       } else {
@@ -672,12 +498,14 @@ export class JobScraper implements IJobScraper {
           const listings: JobListing[] = [];
           for (const item of parsed) {
             if (!item.link || !item.title) continue;
-            if (!isLikelyJobPosting(item.link, item.title)) continue;
+            const link = canonicalizeJobLink(item.link);
+            if (!link) continue;
+            if (!isLikelyJobPosting(link, item.title)) continue;
             const description = (item.description || item.snippet || '').slice(0, 3000);
             const listing: JobListing = {
               title: item.title,
               company: item.company || '',
-              link: item.link,
+              link,
               snippet: item.snippet || description.slice(0, 280),
               description,
               location: item.location || 'Brazil',
@@ -685,6 +513,9 @@ export class JobScraper implements IJobScraper {
               verifiedAt: formatVerifiedAt(),
             };
             if (!isBrazilRelevantJob(listing)) continue;
+            if (isClosedJobText(jobTextBlob([listing.title, listing.snippet, listing.description]))) {
+              continue;
+            }
             listings.push(listing);
           }
 
@@ -756,22 +587,37 @@ export class JobScraper implements IJobScraper {
   ): Promise<void> {
     for (const listing of listings) {
       if (byLink.size >= minJobs) return;
-      if (byLink.has(listing.link)) continue;
-      if (!isLikelyJobPosting(listing.link, listing.title)) {
-        console.log(`[scraper] ignorado (não parece vaga): ${listing.title}`);
+
+      const link = canonicalizeJobLink(listing.link);
+      if (!link) continue;
+      const normalized = { ...listing, link };
+
+      if (byLink.has(normalized.link)) continue;
+      if (!isLikelyJobPosting(normalized.link, normalized.title)) {
+        console.log(`[scraper] ignorado (não parece vaga): ${normalized.title}`);
         continue;
       }
-      if (!isBrazilRelevantJob(listing)) {
-        console.log(`[scraper] ignorado (fora do Brasil): ${listing.title}`);
+      if (!isBrazilRelevantJob(normalized)) {
+        console.log(`[scraper] ignorado (fora do Brasil): ${normalized.title}`);
         continue;
       }
 
       const detailed = enrich
-        ? await this.fetchJobDetails(listing)
+        ? await this.fetchJobDetails(normalized)
         : {
-            ...listing,
-            verifiedAt: listing.verifiedAt || formatVerifiedAt(),
+            ...normalized,
+            verifiedAt: normalized.verifiedAt || formatVerifiedAt(),
           };
+
+      if (
+        isClosedJobText(
+          jobTextBlob([detailed.title, detailed.snippet, detailed.description])
+        )
+      ) {
+        console.log(`[scraper] ignorado (encerrada): ${detailed.title}`);
+        continue;
+      }
+
       byLink.set(detailed.link, detailed);
       console.log(`[scraper] +1 (${byLink.size}/${minJobs}) ${detailed.title}`);
     }
@@ -815,15 +661,8 @@ export class JobScraper implements IJobScraper {
   }
 
   private logSearchProviders(): void {
-    const providers = [
-      ['Bing', Boolean(process.env.BING_SEARCH_API_KEY)],
-      ['SerpAPI', Boolean(process.env.SERPAPI_API_KEY)],
-      ['SearchAPI', Boolean(process.env.SEARCHAPI_API_KEY)],
-    ] as const;
-
-    const enabled = providers.filter(([, on]) => on).map(([name]) => name);
     console.log(
-      `[scraper] Fallbacks de busca API: ${enabled.length ? enabled.join(', ') : 'nenhum configurado'}`
+      '[scraper] Busca web: DuckDuckGo (principal); Bing HTML só em queries DDG vazias se pool < minJobs'
     );
   }
 
@@ -839,31 +678,67 @@ export class JobScraper implements IJobScraper {
     this.logSearchProviders();
     const byLink = new Map<string, JobListing>();
 
-    const runQueryBatch = async (batch: string[], label: string) => {
+    const runDdgBatch = async (
+      batch: string[],
+      label: string,
+      stopAt: number
+    ): Promise<string[]> => {
+      const emptyQueries: string[] = [];
       for (const query of batch) {
-        if (byLink.size >= targetPool) return;
-        console.log(`[scraper] (${label}) ${byLink.size}/${targetPool} | ${query}`);
-        const listings = await this.searchQuery(query);
+        if (byLink.size >= stopAt) return emptyQueries;
+        console.log(`[scraper] (${label}/ddg) ${byLink.size}/${stopAt} | ${query}`);
+        const listings = await this.searchDuckDuckGo(query);
+        if (listings.length === 0) emptyQueries.push(query);
+        await this.addListings(listings, byLink, stopAt, true);
+      }
+      return emptyQueries;
+    };
+
+    const runBingForEmptyQueries = async (
+      emptyQueries: string[],
+      label: string
+    ) => {
+      if (byLink.size >= minJobs || emptyQueries.length === 0) return;
+      console.log(
+        `[scraper] Pool ${byLink.size}/${minJobs} — Bing HTML em ${emptyQueries.length} query(s) vazias do DDG (${label})`
+      );
+      for (const query of emptyQueries) {
+        if (byLink.size >= minJobs) return;
+        console.log(
+          `[scraper] (${label}/bing) ${byLink.size}/${minJobs} | ${query}`
+        );
+        const listings = await this.searchBingHtml(query);
         await this.addListings(listings, byLink, targetPool, true);
       }
     };
-    await runQueryBatch(queries, 'prioritário');
+
+    const emptyPriority = await runDdgBatch(queries, 'prioritário', targetPool);
+    await runBingForEmptyQueries(emptyPriority, 'prioritário');
 
     if (byLink.size < targetPool && fallbackQueries.length > 0) {
-      console.log(`[scraper] Pool ${byLink.size}/${targetPool}. Buscas amplas...`);
-      await runQueryBatch(fallbackQueries, 'ampla');
+      console.log(`[scraper] Pool ${byLink.size}/${targetPool}. Buscas amplas (DDG)...`);
+      const emptyAmpla = await runDdgBatch(fallbackQueries, 'ampla', targetPool);
+      await runBingForEmptyQueries(emptyAmpla, 'ampla');
     }
+
     if (byLink.size < targetPool) {
       console.log('[scraper] Completando pool com APIs de vagas (Remotive/RemoteOK)...');
       await this.addListings(await this.searchJobApis(), byLink, targetPool, false);
     }
+
     let round = 0;
     while (byLink.size < minJobs && round < 3) {
       round += 1;
       console.log(
         `[scraper] Ainda abaixo da meta (${byLink.size}/${minJobs}). Expansão round ${round}...`
       );
-      await runQueryBatch(this.buildExpansionQueries(round), `expansão-${round}`);
+      const expansion = this.buildExpansionQueries(round);
+      const emptyExpansion = await runDdgBatch(
+        expansion,
+        `expansão-${round}`,
+        targetPool
+      );
+      await runBingForEmptyQueries(emptyExpansion, `expansão-${round}`);
       if (byLink.size < minJobs) {
         await this.addListings(await this.searchJobApis(), byLink, targetPool, false);
       }

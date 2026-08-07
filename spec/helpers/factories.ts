@@ -62,6 +62,7 @@ export function createMockRepository(
     save: vi.fn(),
     getPending: vi.fn().mockReturnValue([]),
     markSent: vi.fn(),
+    markRejected: vi.fn(),
     purgeRetryableRejected: vi.fn().mockReturnValue(0),
     reinstatePreferenceOnlyRejects: vi.fn().mockReturnValue(0),
     close: vi.fn(),

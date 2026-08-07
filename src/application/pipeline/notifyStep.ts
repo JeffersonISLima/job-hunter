@@ -1,4 +1,9 @@
 import type { IJobNotifier } from '../../domain/ports/jobNotifier';
+import {
+  CLOSED_JOB_REASON,
+  isClosedJobText,
+  jobTextBlob,
+} from '../../infrastructure/scraping/jobValidation';
 import type { PipelineContext, PipelineStep } from './context';
 
 export class NotifyStep implements PipelineStep {
@@ -13,6 +18,21 @@ export class NotifyStep implements PipelineStep {
     );
 
     for (const stored of pending) {
+      if (
+        isClosedJobText(
+          jobTextBlob([
+            stored.title,
+            stored.snippet,
+            stored.description,
+            stored.reason,
+          ])
+        )
+      ) {
+        ctx.repo.markRejected(stored.link, CLOSED_JOB_REASON);
+        console.log(`[skip] Encerrada, não enviada: ${stored.title}`);
+        continue;
+      }
+
       const alert = this.notifier.alertFromStored(stored);
       try {
         await this.notifier.sendJobAlert(alert);

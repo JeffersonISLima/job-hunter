@@ -3,15 +3,25 @@ import type {
   SaveJobInput,
   StoredJob,
 } from '../../domain/ports/jobRepository';
+import {
+  canonicalizeJobLink,
+  isClosedJobText,
+  jobTextBlob,
+} from '../scraping/jobValidation';
 import type { SqliteDatabase } from './database';
+
+function normalizeJobLink(link: string): string {
+  return canonicalizeJobLink(link) ?? link;
+}
 
 export class JobRepository implements IJobRepository {
   constructor(private readonly database: SqliteDatabase) {}
 
   isProcessed(link: string): boolean {
+    const key = normalizeJobLink(link);
     const row = this.database.client
       .prepare('SELECT id FROM jobs WHERE link = ?')
-      .get(link);
+      .get(key);
     return Boolean(row);
   }
 
@@ -27,6 +37,8 @@ export class JobRepository implements IJobRepository {
       recruiterEmail = '',
       status = 'pending',
     } = input;
+
+    const link = normalizeJobLink(job.link);
 
     this.database.client
       .prepare(
@@ -58,7 +70,7 @@ export class JobRepository implements IJobRepository {
     `
       )
       .run({
-        link: job.link,
+        link,
         title: job.title,
         company: job.company || '',
         snippet: job.snippet || '',
@@ -93,7 +105,17 @@ export class JobRepository implements IJobRepository {
          SET status = 'sent', sent_at = datetime('now')
          WHERE link = ?`
       )
-      .run(link);
+      .run(normalizeJobLink(link));
+  }
+
+  markRejected(link: string, reason: string): void {
+    this.database.client
+      .prepare(
+        `UPDATE jobs
+         SET status = 'rejected', score = 0, reason = ?
+         WHERE link = ? AND status != 'sent'`
+      )
+      .run(reason, normalizeJobLink(link));
   }
 
   purgeRetryableRejected(): number {
@@ -101,6 +123,8 @@ export class JobRepository implements IJobRepository {
       .prepare(
         `DELETE FROM jobs
          WHERE status = 'rejected'
+           AND reason NOT LIKE '%Vaga encerrada%'
+           AND reason NOT LIKE '%candidaturas fechadas%'
            AND (
              score = 0
              OR reason LIKE '%Rate limit%'
@@ -131,15 +155,9 @@ export class JobRepository implements IJobRepository {
   }
 
   reinstatePreferenceOnlyRejects(): number {
-    const result = this.database.client
+    const candidates = this.database.client
       .prepare(
-        `UPDATE jobs
-         SET
-           status = 'pending',
-           score = CASE WHEN score < 7 THEN 7 ELSE score END,
-           reason = trim(
-             reason || ' | Reaberta: empresas da lista são preferência, não requisito.'
-           )
+        `SELECT * FROM jobs
          WHERE status = 'rejected'
            AND title NOT LIKE '%+%'
            AND lower(title) NOT LIKE '%vaga(s)%'
@@ -168,8 +186,32 @@ export class JobRepository implements IJobRepository {
              OR score >= 2.5
            )`
       )
-      .run();
-    return result.changes;
+      .all() as StoredJob[];
+
+    const update = this.database.client.prepare(
+      `UPDATE jobs
+       SET
+         status = 'pending',
+         score = CASE WHEN score < 7 THEN 7 ELSE score END,
+         reason = trim(
+           reason || ' | Reaberta: empresas da lista são preferência, não requisito.'
+         )
+       WHERE id = ?`
+    );
+
+    let reinstated = 0;
+    for (const row of candidates) {
+      if (
+        isClosedJobText(
+          jobTextBlob([row.title, row.snippet, row.description, row.reason])
+        )
+      ) {
+        continue;
+      }
+      update.run(row.id);
+      reinstated += 1;
+    }
+    return reinstated;
   }
 
   close(): void {

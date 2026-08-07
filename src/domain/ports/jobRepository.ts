@@ -39,6 +39,7 @@ export interface IJobRepository {
   save(input: SaveJobInput): void;
   getPending(limit: number): StoredJob[];
   markSent(link: string): void;
+  markRejected(link: string, reason: string): void;
   purgeRetryableRejected(): number;
   reinstatePreferenceOnlyRejects(): number;
   close(): void;
