@@ -14,4 +14,5 @@ export interface ScoreResult {
 
 export interface IJobEvaluator {
   evaluate(job: JobListing): Promise<ScoreResult>;
+  usedFallbackModel(): boolean;
 }

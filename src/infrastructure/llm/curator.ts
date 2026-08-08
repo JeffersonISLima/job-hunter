@@ -9,6 +9,10 @@ import type {
 export class JobCurator implements IJobEvaluator {
   private preferFallbackModel = false;
 
+  usedFallbackModel(): boolean {
+    return this.preferFallbackModel;
+  }
+
   private getPrimaryModel(): string {
     return process.env.OPENAI_MODEL || config.model;
   }

@@ -47,6 +47,9 @@ export class CurateService {
       }
 
       const result = await this.evaluator.evaluate(job);
+      if (this.evaluator.usedFallbackModel()) {
+        ctx.usedLlmFallback = true;
+      }
       console.log(
         `[score] ${result.score}/10 compatible=${result.compatible} points=${result.rankingPoints}`
       );

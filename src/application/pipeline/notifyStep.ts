@@ -12,6 +12,18 @@ export class NotifyStep implements PipelineStep {
   constructor(private readonly notifier: IJobNotifier) {}
 
   async run(ctx: PipelineContext): Promise<void> {
+    if (ctx.usedLlmFallback && ctx.fallbackModel) {
+      try {
+        await this.notifier.sendLlmFallbackNotice(
+          ctx.primaryModel,
+          ctx.fallbackModel
+        );
+        console.log('[telegram] Aviso de fallback LLM enviado');
+      } catch (error) {
+        console.error('[telegram] Falha ao enviar aviso de fallback LLM:', error);
+      }
+    }
+
     const pending = ctx.repo.getPending(ctx.maxValid);
     console.log(
       `[queue] ${pending.length} vaga(s) na fila de envio (máx ${ctx.maxValid})`
