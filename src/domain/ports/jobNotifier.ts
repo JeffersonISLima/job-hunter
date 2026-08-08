@@ -21,4 +21,8 @@ export interface IJobNotifier {
   alertFromListing(job: JobListing, result: ScoreResult): AlertPayload;
   sendJobAlert(alert: AlertPayload, maxAttempts?: number): Promise<void>;
   sendNoJobsStatus(date?: Date): Promise<void>;
+  sendLlmFallbackNotice(
+    primaryModel: string,
+    fallbackModel: string
+  ): Promise<void>;
 }

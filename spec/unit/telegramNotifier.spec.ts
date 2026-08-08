@@ -17,6 +17,15 @@ describe('TelegramNotifier', () => {
     );
   });
 
+  it('monta aviso de fallback LLM', () => {
+    expect(
+      notifier.buildLlmFallbackNoticeMessage(
+        'nvidia/nemotron-3-super-120b-a12b:free',
+        'openai/gpt-4o-mini'
+      )
+    ).toContain('Usando fallback: openai/gpt-4o-mini');
+  });
+
   it('mapeia stored job para alert payload', () => {
     const stored = createStoredJob({
       title: 'NestJS Pleno',

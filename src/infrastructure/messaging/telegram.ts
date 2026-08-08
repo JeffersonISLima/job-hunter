@@ -131,6 +131,18 @@ Muito obrigado pelo seu tempo."`,
     return `Job Hunter executado às ${this.formatBrazilHour(date)}, nenhuma oportunidade encontrada.`;
   }
 
+  buildLlmFallbackNoticeMessage(
+    primaryModel: string,
+    fallbackModel: string
+  ): string {
+    return [
+      'Job Hunter: rate limit no modelo free.',
+      `Principal: ${primaryModel}`,
+      `Usando fallback: ${fallbackModel}`,
+      'Se este aviso for frequente, reduza maxAlertsPerRun / minGatherJobs.',
+    ].join('\n');
+  }
+
   private async sendTextMessage(
     text: string,
     options: { parseMode?: 'Markdown'; disablePreview?: boolean } = {},
@@ -205,6 +217,15 @@ Muito obrigado pelo seu tempo."`,
 
   async sendNoJobsStatus(date = new Date()): Promise<void> {
     await this.sendTextMessage(this.buildNoJobsStatusMessage(date));
+  }
+
+  async sendLlmFallbackNotice(
+    primaryModel: string,
+    fallbackModel: string
+  ): Promise<void> {
+    await this.sendTextMessage(
+      this.buildLlmFallbackNoticeMessage(primaryModel, fallbackModel)
+    );
   }
 }
 

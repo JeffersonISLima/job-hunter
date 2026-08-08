@@ -92,6 +92,7 @@ export function createMockNotifier(
     alertFromListing: vi.fn(),
     sendJobAlert: vi.fn().mockResolvedValue(undefined),
     sendNoJobsStatus: vi.fn().mockResolvedValue(undefined),
+    sendLlmFallbackNotice: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
@@ -108,6 +109,9 @@ export function createContext(
     curateStatus: 'ok',
     sent: 0,
     failedSend: 0,
+    usedLlmFallback: false,
+    primaryModel: 'nvidia/nemotron-3-super-120b-a12b:free',
+    fallbackModel: 'openai/gpt-4o-mini',
     ...overrides,
   };
 }

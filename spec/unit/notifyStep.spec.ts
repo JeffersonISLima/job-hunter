@@ -84,4 +84,45 @@ describe('NotifyStep', () => {
     expect(ctx.sent).toBe(0);
     expect(notifier.sendNoJobsStatus).toHaveBeenCalledOnce();
   });
+
+  it('envia aviso de fallback LLM uma vez antes das vagas', async () => {
+    const pending = [createStoredJob()];
+    const repo = createMockRepository({
+      getPending: vi.fn().mockReturnValue(pending),
+    });
+    const notifier = createMockNotifier();
+    const step = new NotifyStep(notifier);
+    const ctx = createContext({
+      repo,
+      usedLlmFallback: true,
+      primaryModel: 'nvidia/nemotron-3-super-120b-a12b:free',
+      fallbackModel: 'openai/gpt-4o-mini',
+    });
+
+    await step.run(ctx);
+
+    expect(notifier.sendLlmFallbackNotice).toHaveBeenCalledOnce();
+    expect(notifier.sendLlmFallbackNotice).toHaveBeenCalledWith(
+      'nvidia/nemotron-3-super-120b-a12b:free',
+      'openai/gpt-4o-mini'
+    );
+    expect(notifier.sendJobAlert).toHaveBeenCalledOnce();
+    const noticeOrder = (notifier.sendLlmFallbackNotice as ReturnType<typeof vi.fn>)
+      .mock.invocationCallOrder[0];
+    const alertOrder = (notifier.sendJobAlert as ReturnType<typeof vi.fn>).mock
+      .invocationCallOrder[0];
+    expect(noticeOrder).toBeLessThan(alertOrder);
+  });
+
+  it('não envia aviso de fallback quando usedLlmFallback é false', async () => {
+    const repo = createMockRepository({
+      getPending: vi.fn().mockReturnValue([createStoredJob()]),
+    });
+    const notifier = createMockNotifier();
+    const step = new NotifyStep(notifier);
+
+    await step.run(createContext({ repo, usedLlmFallback: false }));
+
+    expect(notifier.sendLlmFallbackNotice).not.toHaveBeenCalled();
+  });
 });

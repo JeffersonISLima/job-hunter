@@ -41,6 +41,9 @@ export class JobHunter {
       curateStatus: 'ok',
       sent: 0,
       failedSend: 0,
+      usedLlmFallback: false,
+      primaryModel: model,
+      fallbackModel: modelFallback || '',
     };
 
     const curateService = new CurateService(evaluator);

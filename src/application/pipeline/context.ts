@@ -16,6 +16,9 @@ export interface PipelineContext {
   curateStatus: CurateStatus;
   sent: number;
   failedSend: number;
+  usedLlmFallback: boolean;
+  primaryModel: string;
+  fallbackModel: string;
 }
 
 export interface PipelineStep {

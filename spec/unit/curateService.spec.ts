@@ -8,12 +8,22 @@ import {
   createScoreResult,
 } from '../helpers/factories';
 
+function createMockEvaluator(
+  overrides: Partial<IJobEvaluator> = {}
+): IJobEvaluator {
+  return {
+    evaluate: vi.fn().mockResolvedValue(createScoreResult({ score: 8 })),
+    usedFallbackModel: vi.fn().mockReturnValue(false),
+    ...overrides,
+  };
+}
+
 describe('CurateService', () => {
   it('persiste vaga elegível como pending e incrementa contadores', async () => {
     const repo = createMockRepository();
-    const evaluator: IJobEvaluator = {
+    const evaluator = createMockEvaluator({
       evaluate: vi.fn().mockResolvedValue(createScoreResult({ score: 8 })),
-    };
+    });
     const service = new CurateService(evaluator);
     const ctx = createContext({ repo, minScore: 7, maxValid: 3 });
     const job = createJob();
@@ -30,13 +40,13 @@ describe('CurateService', () => {
 
   it('persiste vaga abaixo do minScore como rejected', async () => {
     const repo = createMockRepository();
-    const evaluator: IJobEvaluator = {
+    const evaluator = createMockEvaluator({
       evaluate: vi
         .fn()
         .mockResolvedValue(
           createScoreResult({ compatible: true, score: 5, reason: 'Fraco' })
         ),
-    };
+    });
     const service = new CurateService(evaluator);
     const ctx = createContext({ repo, minScore: 7 });
 
@@ -53,7 +63,7 @@ describe('CurateService', () => {
       isProcessed: vi.fn().mockReturnValue(true),
     });
     const evaluate = vi.fn();
-    const service = new CurateService({ evaluate });
+    const service = new CurateService(createMockEvaluator({ evaluate }));
     const ctx = createContext({ repo });
 
     await service.curateUntilValid([createJob()], ctx);
@@ -66,7 +76,7 @@ describe('CurateService', () => {
   it('para ao atingir maxValid', async () => {
     const repo = createMockRepository();
     const evaluate = vi.fn().mockResolvedValue(createScoreResult({ score: 9 }));
-    const service = new CurateService({ evaluate });
+    const service = new CurateService(createMockEvaluator({ evaluate }));
     const ctx = createContext({
       repo,
       maxValid: 1,
@@ -84,16 +94,18 @@ describe('CurateService', () => {
 
   it('retorna rate_limited quando a avaliação falha por rate limit', async () => {
     const repo = createMockRepository();
-    const service = new CurateService({
-      evaluate: vi.fn().mockResolvedValue(
-        createScoreResult({
-          evaluationFailed: true,
-          reason: 'Rate limit 429 free-models-per-day',
-          score: 0,
-          compatible: false,
-        })
-      ),
-    });
+    const service = new CurateService(
+      createMockEvaluator({
+        evaluate: vi.fn().mockResolvedValue(
+          createScoreResult({
+            evaluationFailed: true,
+            reason: 'Rate limit 429 free-models-per-day',
+            score: 0,
+            compatible: false,
+          })
+        ),
+      })
+    );
     const ctx = createContext({ repo });
 
     const status = await service.curateUntilValid([createJob()], ctx);
@@ -105,19 +117,21 @@ describe('CurateService', () => {
 
   it('continua após falha de avaliação sem rate limit', async () => {
     const repo = createMockRepository();
-    const service = new CurateService({
-      evaluate: vi
-        .fn()
-        .mockResolvedValueOnce(
-          createScoreResult({
-            evaluationFailed: true,
-            reason: 'Resposta vazia do modelo',
-            score: 0,
-            compatible: false,
-          })
-        )
-        .mockResolvedValueOnce(createScoreResult({ score: 8 })),
-    });
+    const service = new CurateService(
+      createMockEvaluator({
+        evaluate: vi
+          .fn()
+          .mockResolvedValueOnce(
+            createScoreResult({
+              evaluationFailed: true,
+              reason: 'Resposta vazia do modelo',
+              score: 0,
+              compatible: false,
+            })
+          )
+          .mockResolvedValueOnce(createScoreResult({ score: 8 })),
+      })
+    );
     const ctx = createContext({ repo });
 
     const status = await service.curateUntilValid(
@@ -136,7 +150,7 @@ describe('CurateService', () => {
   it('rejeita vaga encerrada sem chamar o evaluator', async () => {
     const repo = createMockRepository();
     const evaluate = vi.fn();
-    const service = new CurateService({ evaluate });
+    const service = new CurateService(createMockEvaluator({ evaluate }));
     const ctx = createContext({ repo });
     const job = createJob({
       link: 'https://montreal.gupy.io/jobs/11575472',
@@ -158,5 +172,19 @@ describe('CurateService', () => {
         reason: 'Vaga encerrada / candidaturas fechadas',
       })
     );
+  });
+
+  it('marca usedLlmFallback quando o evaluator usa fallback', async () => {
+    const repo = createMockRepository();
+    const service = new CurateService(
+      createMockEvaluator({
+        usedFallbackModel: vi.fn().mockReturnValue(true),
+      })
+    );
+    const ctx = createContext({ repo });
+
+    await service.curateUntilValid([createJob()], ctx);
+
+    expect(ctx.usedLlmFallback).toBe(true);
   });
 });
