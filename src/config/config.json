@@ -1,8 +1,8 @@
 {
   "model": "nvidia/nemotron-3-super-120b-a12b:free",
   "minScore": 7,
-  "maxAlertsPerRun": 15,
-  "minGatherJobs": 15,
+  "maxAlertsPerRun": 20,
+  "minGatherJobs": 20,
   "candidate": {
     "fullName": "Jefferson Inácio de Souza Lima",
     "shortName": "Jefferson",
