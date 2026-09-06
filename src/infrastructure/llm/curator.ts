@@ -107,7 +107,8 @@ IMPORTANTE — CALIBRAÇÃO:
 - Vaga real de Backend/Node.js Pleno (ou mid) no Brasil ou 100% remoto aceitando BR, sem exclusões duras → compatible=true e score >= 7 OBRIGATORIAMENTE.
 - NUNCA baixe o score por "empresa não está nos tiers/setores prioritários".
 - Falta de NestJS, Docker, PostgreSQL ou salário informado NÃO derruba abaixo de 7 se Node.js + nível + modalidade encaixam.
-- Só use score < 7 ou compatible=false para: página agregadora, vaga inativa, stack principal excluída, inglês fluente obrigatório, presencial sem ser big tech/banco BR, ou nível claramente senior/staff acima do perfil.
+- Só use score < 7 ou compatible=false para: página agregadora, vaga inativa, stack principal excluída, inglês fluente obrigatório, presencial/híbrido sem ser big tech/banco BR nem empresa da lista prioritária, ou nível claramente senior/staff acima do perfil.
+- Empresas da lista prioritária: modalidade livre (remoto, híbrido ou presencial) — não rejeitar por não ser remoto.
 
 RUBRICA INTERNA DE PONTOS (some mentalmente; depois normalize score 0-10):
 - Empresa Tier S: +${rubric.tierS}

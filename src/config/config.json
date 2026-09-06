@@ -13,7 +13,7 @@
   "role": "Desenvolvedor Back-end Node.js Pleno (mid-level)",
   "modality": {
     "preferred": "100% remota (qualquer lugar)",
-    "hybridOrOnsite": "somente se a empresa for big tech brasileira ou banco de grande porte"
+    "hybridOrOnsite": "somente se a empresa for big tech brasileira, banco de grande porte, ou estiver na lista de setores/empresas prioritárias (nesses casos remoto, híbrido ou presencial são aceitos)"
   },
   "salary": {
     "priorityFrom": 10000,
@@ -31,7 +31,7 @@
   "prioritySectors": [
     {
       "tier": "S",
-      "name": "financeiro",
+      "name": "financeiro / seguros",
       "points": 40,
       "companies": [
         "Itaú",
@@ -52,7 +52,8 @@
         "BTG",
         "Inter",
         "BV",
-        "Neon"
+        "Neon",
+        "Porto Seguro"
       ]
     },
     {
@@ -132,13 +133,14 @@
   "queries": [
     "\"Node.js\" OR NestJS \"desenvolvedor backend\" OR \"desenvolvedor back-end\" pleno remoto",
     "\"Node.js\" backend pleno (Nubank OR Stone OR PicPay OR \"C6 Bank\" OR Inter OR Neon) vaga",
-    "\"Node.js\" OR NestJS (Itaú OR Bradesco OR Santander OR BTG OR Safra) desenvolvedor",
+    "\"Node.js\" OR NestJS (Itaú OR Bradesco OR Santander OR BTG OR Safra OR \"Porto Seguro\") desenvolvedor",
     "\"Node.js\" backend (\"Mercado Livre\" OR iFood OR Hotmart OR Pipefy OR Olist OR \"RD Station\") vaga",
     "NestJS OR \"Node.js\" TypeScript backend pleno site:gupy.io",
     "\"Node.js\" backend remoto Brasil site:boards.greenhouse.io",
     "\"Node.js\" OR NestJS backend Brasil site:jobs.lever.co",
     "\"Node.js\" backend (Dock OR Pismo OR Celcoin OR EBANX OR CloudWalk OR \"Mercado Pago\") vaga",
     "\"Node.js\" OR NestJS (Solinftec OR Agrolend OR Traive OR Raízen) desenvolvedor",
+    "\"Porto Seguro\" \"Node.js\" OR NestJS desenvolvedor backend vaga",
     "site:linkedin.com/jobs Node.js OR NestJS backend pleno remoto Brasil"
   ],
   "fallbackQueries": [
